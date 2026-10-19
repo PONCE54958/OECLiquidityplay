@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "LiquidityMapperFast",
-  "short_name": "LiquidityMapper",
+  "name": "OECLiquidity",
+  "short_name": "OEC",
   "description": "A live liquidity heatmap, order-book ladder and footprint for BTC and about 150 other coins across the largest exchanges. Free, no sign-up, open source.",
   "start_url": "./",
   "scope": "./",
