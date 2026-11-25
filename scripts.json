@@ -1,16 +1,17 @@
 {
  "name": "LiquidityMapperFast scripts",
- "version": 1,
+ "version": 3,
  "language": "JavaScript-shaped indicator scripts, run once per candle",
- "reference": "https://liquiditymapperfast.github.io/script-reference.md",
+ "reference": "https://liquiditymapper.com/script-reference.md",
  "rules": [
   "A script is JavaScript-shaped code run once for each candle of the chart, oldest first, drawing plots from what it reads.",
   "Statements: var, let, const, if / else, for (;;), while, do ... while, break, continue, function name(...) { ... }, return; expressions as in JavaScript, arrow functions and ternaries included. As in JavaScript, a line break ends a statement only where the next line cannot carry it on: x = 1 followed by a line + 2 is x = 3, and a line that starts with ( or [ carries on the line before it. Two statements on one line need a semicolon; end a statement with one when the next line starts with an operator or a bracket.",
   "A name assigned without var, let or const anywhere in the script (x = ...) keeps its value from candle to candle and starts at 0; x[1] is its value one candle back (x[n], n candles back; the first candle reads itself). Such names are one name whatever their case. A var, let or const starts again each candle.",
-  "Plot calls, option(...) and source(...) take named arguments: line(x, title=\"CVD\", color=red, lineWidth=2); a bare word as a named value is a text (title=CVD). Every other function takes its arguments by position only, and ignores a named one: write sma(x, 20), not sma(x, length=20).",
-  "Plots are line, area, histogram, baseline, candlestick, plotbar, cloudarea, brokenarea (each also as plotline, plothistogram, ...). Each takes title=, priceScaleId=, scaleMargins={top: 0.1, bottom: 0.1} and visible=, and the style its kind reads (see Plots: a candlestick has upColor and downColor, not color); a kind ignores the style it does not read. lineWidth is 1 to 6; lineStyle is 0 solid, 1 dotted, 2 dashed, 3 long dashes, 4 sparse dots. A point can be an object: line({time: time, value: x, color: c}) colours that candle's point.",
+  "Plot calls, option(...), source(...) and alert(...) take named arguments: line(x, title=\"CVD\", color=red, lineWidth=2); a bare word as a named value is a text (title=CVD). Every other function takes its arguments by position only, and ignores a named one: write sma(x, 20), not sma(x, length=20).",
+  "A plot's named arguments are its style, read once, at its first call: what changes from candle to candle goes in its values, by position or in a point object (a mark's text, tip and colour: mark(v, text, tip, colour) or mark({value: v, text: t, color: c}); a line's colour: line({value: x, color: c})). A level is the one plot that can be drawn from an earlier candle: level(price, from, to, text) starts it at the candle from names.",
+  "Plots are line, area, histogram, baseline, candlestick, plotbar, cloudarea, brokenarea, mark, level (each also as plotline, plothistogram, ...). Each takes title=, priceScaleId=, scaleMargins={top: 0.1, bottom: 0.1} and visible=, and the style its kind reads (see Plots: a candlestick has upColor and downColor, not color); a kind ignores the style it does not read. lineWidth is 1 to 6; lineStyle is 0 solid, 1 dotted, 2 dashed, 3 long dashes, 4 sparse dots. A point can be an object: line({time: time, value: x, color: c}) colours that candle's point.",
   "A script draws in a row of its own under the map, or on the map, where plots on the default price scale (priceScaleId right) stand at their prices and the others on scales of their own; the Draw setting in its panel chooses. $price.color colours the map's candles.",
-  "A candle whose flow or liquidations were not recorded reads NaN: the functions skip it (they do not take it as 0) and a plot draws nothing there. Use nz(x) where 0 is meant.",
+  "A candle whose flow is known neither from the recording nor from Binance's own candles, or whose liquidations were not recorded (no candle reports them), reads NaN: the functions skip it (they do not take it as 0) and a plot draws nothing there. Use nz(x) where 0 is meant.",
   "Each call of a function with a history (sma, ema, cum, ...) keeps its own: call them at fixed places, not in a loop over windows (a loop would share one).",
   "Lengths may be any expression (sma(x, options.length)); a window shorter than its length uses the values there are."
  ],
@@ -21,7 +22,7 @@
   },
   {
    "name": "vbuy",
-   "is": "Dollars bought at market (taker buys) in the candle, over the markets the script reads (see source). NaN where the flow was not recorded."
+   "is": "Dollars bought at market (taker buys) in the candle, over the markets the script reads (see source). Where the page did not record the flow (before it was opened, or in a gap), the candles of the Binance markets among them say it, spot and perpetual added up, as far back as the script reads (Binance's candles report who bought; no other exchange's do): those markets only, not all of them, so the numbers are smaller there; bar.recorded tells which. NaN where neither is known (a set with no Binance market, or a Binance candle not read)."
   },
   {
    "name": "vsell",
@@ -36,6 +37,10 @@
    "is": "Dollars of long positions liquidated in the candle (sold by force)."
   },
   {
+   "name": "oichg",
+   "is": "Dollars of open interest opened (+) or closed (-) in the candle, over the perpetuals the OI pane adds up (its Venues setting), at the candle's close; NaN where open interest was not read. source(...) does not change it. Also bar.oichg."
+  },
+  {
    "name": "cbuy",
    "is": "Trade counts are not recorded here: cbuy and csell always read NaN."
   },
@@ -45,15 +50,19 @@
   },
   {
    "name": "$price",
-   "is": "The chart's candle: $price.open, .high, .low, .close, .time (seconds). Setting $price.color = \"<colour>\" colours the map's candle."
+   "is": "The chart's candle: $price.open, .high, .low, .close, .volume (the chart market's own volume, in coins), .time (seconds). Setting $price.color = \"<colour>\" colours the map's candle."
   },
   {
    "name": "bar",
-   "is": "The same candle and flow as one object: bar.open, .high, .low, .close, .vbuy, .vsell, .lbuy, .lsell, .timestamp (seconds)."
+   "is": "The same candle and flow as one object: bar.open, .high, .low, .close, .volume, .vbuy, .vsell, .lbuy, .lsell, .oichg, .timestamp (seconds), and .recorded: 1 where vbuy and vsell were recorded on this page, 0 where they come from the Binance markets' own candles, NaN where neither is known."
   },
   {
    "name": "renderer",
-   "is": "renderer.length is the number of candles so far, this one included; renderer.timestamp the candle's start (seconds), renderer.timeframe its length (seconds)."
+   "is": "renderer.length is the number of candles so far, this one included; renderer.timestamp the candle's start (seconds), renderer.timeframe its length (seconds); renderer.forming is true on the candle still under way (the newest, until it closes) and false on every closed one; renderer.last is true on the newest candle the script reads, under way or not (a replay, a quiet market), and false on all the others: where a label of the newest value goes (a mark with shape=tag stands it at the right edge)."
+  },
+  {
+   "name": "theme",
+   "is": "The page's colours, read-only: theme.dark (whether the chart's background is dark), theme.background, theme.text, theme.up and theme.down (its candles' colours), as colour texts. A script coloured from them follows the theme the person picks, and runs again when it changes."
   },
   {
    "name": "options",
@@ -72,6 +81,26 @@
   {
    "name": "source(x, ...)",
    "is": "Reads x over a set of markets: source(vbuy, type=spot|perp, exchange=BINANCE, quote=USDT). Several values in one filter: exchange=BINANCE+BYBIT. Without source, x reads over the flow column's ALL VENUES markets."
+  },
+  {
+   "name": "askdepth(usd) / biddepth(usd)",
+   "is": "The price at which usd dollars of the order book are passed going out from the candle's close: askdepth up through the asks, biddepth down through the bids, over every book the heat map adds up (source(askdepth(x), exchange=BINANCE) reads some of them). Each candle's book is the one the page recorded at its close: its last minute (a minute is the mean of the samples taken in it), or the latest minute recorded inside the candle where its last was not (never another candle's); the candle under way reads its minute under way. Each recorded bin's dollars are spread evenly over its prices. The close for 0; NaN for a size that is not a number or below 0, where no book of the set was recorded for the candle (before the recording, which reaches a day back in a browser and a week on a server, or more than 1,000 candles back), and where the books hold less than usd on that side. askdepth(x) - close is how far a market buy of x dollars would have moved the price had the book stood still. A server from before reads each candle's book averaged over the candle instead (depthatclose() is false there): a price a candle with a move in it went through held bids part of the time and asks the rest, so the side the price came from reads thin; depthabove and depthbelow do not have that. A call walks the book's bins out to the size: a few steps for most sizes, more for one far into the book."
+  },
+  {
+   "name": "depthabove(usd) / depthbelow(usd)",
+   "is": "As askdepth and biddepth, over every dollar recorded at each price, bids and asks alike: the price at which usd dollars of the book are passed going up (down) from the close. At a candle's close nearly the same as askdepth (biddepth): they differ in the bin that holds the close, and where the price moved within the last minute, whose prices held some of the other side's orders too. Where the books are averages over the candle (a server from before), the band that reads the book's usual depth instead of a side the averaging thinned."
+  },
+  {
+   "name": "depthatclose()",
+   "is": "Whether the books read at this candle are their books at its close (true), as the page and an up-to-date server record them, or averages over the candle (false: a server from before); NaN where no book of the set has depth for the candle. It says how the book was sampled, not how fresh it is: where a candle's last minute was not recorded, its latest recorded minute stands in. The Depth bands example reads askdepth and biddepth where it is true, depthabove and depthbelow where not."
+  },
+  {
+   "name": "depthbooks()",
+   "is": "How many order books of the set read (see askdepth) have their depth recorded for the candle: 0 where none was."
+  },
+  {
+   "name": "alert(text, sound=, when=)",
+   "is": "An alert: the page lists text and makes a sound, through its Sounds switch (off: nothing happens) and the cap on how many alerts come at once. Only the candle under way and the last closed one alert; each call alerts once a candle, never for what was already there when the script started, and one call at most every 20 s. sound is chime (the default), rise, fall, tick or none (listed, silent). when=bar (the default) alerts as soon as the call runs in the candle; when=close once the candle has closed with the call made. A replay never alerts."
   },
   {
    "name": "nz(x, y)",
@@ -229,12 +258,13 @@
     "lineColor",
     "lineWidth",
     "lineStyle",
+    "lineType",
     "title",
     "priceScaleId",
     "scaleMargins",
     "visible"
    ],
-   "is": "A line through one value a candle."
+   "is": "A line through one value a candle; with lineType=1 each value is a level across its own candle, joined straight to the next (a value on one candle alone draws its level)."
   },
   {
    "kind": "area",
@@ -393,6 +423,51 @@
     "visible"
    ],
    "is": "A band from lowerValue to higherValue a candle, without joining candles (a row of colour per candle: heat maps)."
+  },
+  {
+   "kind": "mark",
+   "calls": [
+    "mark(...)",
+    "plotmark(...)"
+   ],
+   "fields": [
+    "value"
+   ],
+   "style": [
+    "color",
+    "textColor",
+    "shape",
+    "position",
+    "offset",
+    "size",
+    "title",
+    "priceScaleId",
+    "scaleMargins",
+    "visible"
+   ],
+   "is": "A mark at a value, on the candles where the call gives one: mark(value, text, tip, colour), or mark({value: v, text: t, tip: s, color: c}). text (up to 24 characters) is shown on the chart; tip (up to 600, a new line with \\n) is what the pointer on the mark reads, with the script's name. A value that is not a number draws no mark there. Where marks would cover one another, a label is drawn as a dot and a text alone is left out, so they read when zoomed in. shape=tag names a line's newest value as a chart's price axis does: the plot's newest mark in view becomes a plate of its colour at the right edge, at the height of its value (its text, or the value where it has none), and the tags of a row (or of the map) are moved apart where they would cover each other, in the order of their values, with a short leader to a value a tag had to move from; give it on renderer.last for one tag at the newest value (position, offset and size do not apply to a tag)."
+  },
+  {
+   "kind": "level",
+   "calls": [
+    "level(...)",
+    "plotlevel(...)"
+   ],
+   "fields": [
+    "value"
+   ],
+   "style": [
+    "color",
+    "lineWidth",
+    "lineStyle",
+    "textColor",
+    "endShape",
+    "title",
+    "priceScaleId",
+    "scaleMargins",
+    "visible"
+   ],
+   "is": "A price held from one candle to a later one, or on to the right edge, named at its right end: level(value, from, to, text, colour), or level({value: v, from: t0, to: t1, text: s, color: c}). from and to are candles' starts in seconds, as time reads them (keep them in a name: start = time, then start[n] is the start of the candle n back); the level is drawn from the middle of the candle from names (this one where it names none) to the middle of the one to names, or on to the right edge where to is left out. Each level is kept at its from candle, so one call can draw many (one per candle), and a later call naming the same from replaces it: ends it, moves it, renames or recolours it; a value that is not a number takes it away. A from or to after this candle names this one. text (up to 24 characters) is shown on a plate at its right end, of the level's colour or of textColor; where names would cover one another, those running on to the edge and the newer go first and the others are left out. endShape draws a cross or a dot at the end of each level that ended."
   }
  ],
  "exchanges": [
@@ -441,6 +516,7 @@
   "marketSets": 24,
   "stepsPerCandle": 40000,
   "runMilliseconds": 2500,
+  "fullRunMilliseconds": 10000,
   "arrayElements": 1000000,
   "textCharacters": 100000
  },
@@ -613,8 +689,8 @@
    "code": "too-slow",
    "message": "Stopped: the script took too long.",
    "when": "running",
-   "note": "The whole run, over every candle of the chart, took longer than 2.5 s; each candle on its own stayed within its steps. Work less a candle, or keep in a kept name what an earlier candle worked out.",
-   "wrong": "var s = 0\nfor (var i = 0; i < 8000; i++) s = s + Math.sqrt(i)\nline(s)",
+   "note": "The run took longer than its time: 10 s for a run from the first candle (the chart opened, the script changed), 2.5 s for a live update of the newest candles; each candle on its own stayed within its steps. Work less a candle, or keep in a kept name what an earlier candle worked out. The example below takes about 30,000 steps a candle: it meets the limit on a chart of 2,000 candles.",
+   "wrong": "var s = 0\nfor (var i = 0; i < 10000; i++) s = s + Math.sqrt(i)\nline(s)",
    "right": "var s = 0\nfor (var i = 0; i < 50; i++) s = s + Math.sqrt(i)\nline(s)"
   },
   {
@@ -675,6 +751,10 @@
   {
    "code": "liquidations-cut",
    "message": "Some days held more liquidations than the source answers: the smallest are missing from lbuy and lsell."
+  },
+  {
+   "code": "long-window",
+   "message": "Line X: this needs X, but scripts read only X. Raise Candles per script (up to 100,000 candles) or use a longer timeframe."
   }
  ],
  "example": "// The cumulative delta of the spot markets, with its 20-candle average.\nlen = option(type=number, default=20, min=2, label=\"Average (candles)\")\nvar delta = source(vbuy, type=spot) - source(vsell, type=spot)\ntotal = total + nz(delta)\nline(total, title=\"Spot CVD\", color=\"rgb(46,155,255)\")\nline(sma(total, len), title=\"Average\", color=\"rgba(128,128,128,0.8)\")"
